@@ -3,3 +3,4 @@ encoders/dist/
 native/dist/
 native/src/raqim.html
 native/src/*.dll
+native/src/*.lib

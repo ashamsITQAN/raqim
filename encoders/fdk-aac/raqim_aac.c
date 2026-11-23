@@ -27,7 +27,11 @@ EXPORT int aac_asc_len(AENC*e){ return e->info.confSize; }
 EXPORT unsigned char* aac_asc(AENC*e){ return e->info.confBuf; }
 EXPORT unsigned char* aac_out(AENC*e){ return e->out; }
 /* encode exactly one call: n interleaved frames (n may be 0 with flush=1). returns bytes of ONE access unit (0 = none yet), sets *consumed */
+#if defined(__wasm__)
 static int consumed_g;
+#else
+static _Thread_local int consumed_g;   /* native builds run several encoders in parallel threads */
+#endif
 EXPORT int aac_consumed(void){ return consumed_g; }
 EXPORT int aac_encode(AENC*e,int offsetFrames,int nFrames,int flush){
   AACENC_BufDesc ib={0},ob={0}; AACENC_InArgs ia={0}; AACENC_OutArgs oa={0};

@@ -1,2 +1,5 @@
 encoders/.build/
 encoders/dist/
+native/dist/
+native/src/raqim.html
+native/src/*.dll

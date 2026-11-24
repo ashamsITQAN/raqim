@@ -19,7 +19,9 @@
 #endif
 
 #define RAQIM_PORT 47115
-#define VERSION "1.0.3"
+#ifndef VERSION
+#define VERSION "dev"   /* set by build_windows.sh from raqim.html */
+#endif
 
 static const unsigned char HTML[] = {
 #embed "raqim.html"

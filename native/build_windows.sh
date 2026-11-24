@@ -9,12 +9,14 @@
 # Requirements: python3 and the Zig C compiler (pip install ziglang).
 set -e
 HERE=$(cd "$(dirname "$0")" && pwd)
-VER=$(sed -n 's/^#define VERSION "\(.*\)"/\1/p' "$HERE/src/main.c")
 ROOT=$(cd "$HERE/.." && pwd)
 ENC="$ROOT/encoders"
 LAME=$(cd "${1:-$ENC/.build/lame}" && pwd)
 FDKSRC=$(cd "${2:-$ENC/.build/fdk-aac/cpp}" && pwd)
 HTML="${3:-$ROOT/raqim.html}"
+# one version number for both editions: taken from <meta name="raqim-version"> in raqim.html
+VER=$(sed -n 's/.*<meta name="raqim-version" content="\([^"]*\)".*/\1/p' "$HTML" | head -1)
+[ -n "$VER" ] || { echo "raqim.html has no raqim-version meta tag" >&2; exit 1; }
 OUT=$(mkdir -p "${4:-$HERE/dist}" && cd "${4:-$HERE/dist}" && pwd)
 WORK="$OUT/.obj"; mkdir -p "$WORK"
 # FDK AAC: use its portable (non-x86) code path, the same one the browser (WebAssembly) build uses,
@@ -44,6 +46,7 @@ engine x64 x86_64
 engine avx2 x86_64_v3
 
 cp "$HTML" "$HERE/src/raqim.html"
-python3 -m ziglang cc -target $T -O2 -std=c2x -municode -Wl,--subsystem,windows -I"$HERE/src" \
-  "$HERE/src/main.c" "$HERE/src/raqim.rc" -lws2_32 -lshell32 -ladvapi32 -luser32 -s -o "$OUT/Raqim-$VER.exe"
+sed -e "s/@VERC@/$(echo $VER | tr . ,)/g" -e "s/@VER@/$VER/g" -e "s#@ICON@#raqim.ico#" "$HERE/src/raqim.rc" > "$HERE/src/raqim_build.rc"
+python3 -m ziglang cc -target $T -O2 -std=c2x -DVERSION=\"$VER\" -municode -Wl,--subsystem,windows -I"$HERE/src" \
+  "$HERE/src/main.c" "$HERE/src/raqim_build.rc" -lws2_32 -lshell32 -ladvapi32 -luser32 -s -o "$OUT/Raqim-$VER.exe"
 ls -la "$OUT/Raqim-$VER.exe" "$HERE"/src/raqim_engine_*.dll

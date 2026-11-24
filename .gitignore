@@ -4,3 +4,4 @@ native/dist/
 native/src/raqim.html
 native/src/*.dll
 native/src/*.lib
+native/src/raqim_build.rc

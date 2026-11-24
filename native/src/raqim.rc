@@ -1,7 +1,7 @@
-1 ICON "raqim.ico"
+1 ICON "@ICON@"
 1 VERSIONINFO
-FILEVERSION 1,0,0,0
-PRODUCTVERSION 1,0,0,0
+FILEVERSION @VERC@,0
+PRODUCTVERSION @VERC@,0
 BEGIN
   BLOCK "StringFileInfo"
   BEGIN
@@ -9,10 +9,10 @@ BEGIN
     BEGIN
       VALUE "CompanyName", "itqan.dev"
       VALUE "FileDescription", "Raqim - Recitation Audio Quran Integrated Manager"
-      VALUE "FileVersion", "1.0.0"
+      VALUE "FileVersion", "@VER@"
       VALUE "ProductName", "Raqim"
-      VALUE "ProductVersion", "1.0.0"
-      VALUE "OriginalFilename", "Raqim.exe"
+      VALUE "ProductVersion", "@VER@"
+      VALUE "OriginalFilename", "Raqim-@VER@.exe"
     END
   END
   BLOCK "VarFileInfo"

@@ -44,6 +44,7 @@
   th{background:#faf8f3;position:sticky;top:0;z-index:1}
   td.mono{font-family:var(--mono);direction:ltr;text-align:left;word-break:break-all}
   td select{padding:3px 6px;font-size:13px}
+  tr.selrow td{background:#eef5f1}
   .tag{display:inline-block;padding:1px 8px;border-radius:20px;font-size:12px;white-space:nowrap}
   .t-ok{background:var(--ok-bg);color:var(--ok)} .t-warn{background:var(--warn-bg);color:var(--warn)} .t-err{background:var(--err-bg);color:var(--err)} .t-mut{background:#eee;color:#555}
   .tablewrap{max-height:560px;overflow:auto;border:1px solid var(--line);border-radius:8px;margin-top:12px}
@@ -216,10 +217,17 @@
     <div class="card" id="resultsCard">
       <h2 id="resultsTitle">المراجعة وإعادة التسمية</h2>
       <div class="summary" id="summary"></div>
+      <div class="btns hidden" id="listTools" style="margin:6px 0 10px;gap:8px;align-items:center">
+        <button class="b" id="rmSel" disabled>إزالة المحدَّد من القائمة</button>
+        <button class="b" id="keepSel" disabled>إبقاء المحدَّد فقط</button>
+        <button class="b hidden" id="keepMissing">إبقاء ما لم يُحوَّل بعد</button>
+        <button class="b hidden" id="restoreList">إرجاع القائمة كاملة</button>
+        <span class="hint" id="listHint" style="margin:0">الإزالة من القائمة فقط، ولا يُحذف أي ملف من جهازك.</span>
+      </div>
       <div class="tablewrap">
         <table>
-          <thead><tr><th>#</th><th>الاسم الحالي</th><th>السورة</th><th>الجودة المكتشفة</th><th>الاسم الجديد</th><th>الحالة</th></tr></thead>
-          <tbody id="rows"><tr><td colspan="6" style="text-align:center;color:var(--muted);padding:22px">اختر المجلد أو الملفات من قسم «الملفات» لتظهر هنا الأسماء الحالية والجديدة</td></tr></tbody>
+          <thead><tr><th style="width:34px"><input type="checkbox" id="selAll" title="تحديد الكل"></th><th>#</th><th>الاسم الحالي</th><th>السورة</th><th>الجودة المكتشفة</th><th>الاسم الجديد</th><th>الحالة</th></tr></thead>
+          <tbody id="rows"><tr><td colspan="7" style="text-align:center;color:var(--muted);padding:22px">اختر المجلد أو الملفات من قسم «الملفات» لتظهر هنا الأسماء الحالية والجديدة</td></tr></tbody>
         </table>
       </div>
       <div class="btns" style="margin-top:14px" id="renameActions">
@@ -791,6 +799,7 @@ function refreshPreview(){
   const errs=formErrors(s);
   showMsg("formMsg",errs.length?"err":"",errs.join(" • "));
   $("convFolder").textContent=convFolder();
+  if(typeof listToolsUI==="function"&&items.length) listToolsUI();
   saveSettings();
   if(items.length) render();
 }
@@ -874,7 +883,8 @@ async function detectBitrate(file){
 }
 
 /* ===================== STATE ===================== */
-let items=[];      // {name, ext, file?, handle?, surah, how, br}
+let items=[];      // {name, ext, file?, handle?, surah, how, br, sel?}
+let allItems=null; // the full list, kept while some files are removed from the table
 let dirHandle=null;
 
 async function loadItems(list){
@@ -887,6 +897,7 @@ async function loadItems(list){
     items.push({name:it.name,ext,handle:it.handle||null,file:it.file||null,surah:d.n,how:d.how,br,done:false});
   }
   items.sort((a,b)=>(a.surah||999)-(b.surah||999)||a.name.localeCompare(b.name));
+  allItems=null;
   $("resultsCard").classList.remove("hidden");
   showMsg("runMsg","","");
   render();
@@ -938,7 +949,7 @@ $("pickFiles").onclick=async()=>{
   }catch(e){ if(e.name!=="AbortError") alertErr(e) }
 };
 $("fileInput").onchange=e=>{dirHandle=null;loadItems([...e.target.files].map(f=>({name:f.name,file:f})));e.target.value=""};
-$("noFiles").onclick=()=>{dirHandle=null;items=SURAHS.map((_,i)=>({name:"",ext:".mp3",surah:i+1,how:"",br:null,virtual:true}));$("resultsCard").classList.remove("hidden");render()};
+$("noFiles").onclick=()=>{dirHandle=null;allItems=null;items=SURAHS.map((_,i)=>({name:"",ext:".mp3",surah:i+1,how:"",br:null,virtual:true}));$("resultsCard").classList.remove("hidden");render()};
 const drop=$("drop");
 ["dragenter","dragover"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add("over")}));
 ["dragleave","drop"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove("over")}));
@@ -974,7 +985,8 @@ function computeRows(){
 function render(){
   const rows=computeRows();
   const virtual=items.length&&items[0].virtual;
-  $("rows").innerHTML=rows.map((r,i)=>`<tr>
+  $("rows").innerHTML=rows.map((r,i)=>`<tr${r.it.sel?' class="selrow"':''}>
+    <td>${virtual?"":`<input type="checkbox" class="rsel" data-i="${i}"${r.it.sel?" checked":""}>`}</td>
     <td>${i+1}</td>
     <td class="mono">${virtual?"—":esc(r.it.name)}</td>
     <td>${virtual?pad3(r.it.surah)+" "+SURAHS[r.it.surah-1][1]:surahSelect(i,r.it.surah)}</td>
@@ -982,12 +994,21 @@ function render(){
     <td class="mono">${esc(r.nn)||"—"}</td>
     <td>${r.st.map(x=>`<span class="tag ${x[0]}">${x[1]}</span>`).join(" ")}</td></tr>`).join("");
   $("rows").querySelectorAll("select").forEach(sel=>sel.onchange=()=>{items[+sel.dataset.i].surah=+sel.value;items[+sel.dataset.i].how="يدوي";render()});
+  let lastClick=-1;
+  $("rows").querySelectorAll(".rsel").forEach(cb=>cb.onclick=e=>{
+    const i=+cb.dataset.i;
+    if(e.shiftKey&&lastClick>=0){ const [a,b]=[Math.min(lastClick,i),Math.max(lastClick,i)]; for(let k=a;k<=b;k++) items[k].sel=cb.checked; } // Shift: a range
+    else items[i].sel=cb.checked;
+    lastClick=i; listToolsUI(); cb.closest("tr").classList.toggle("selrow",cb.checked);
+    if(e.shiftKey) render();
+  });
+  listToolsUI(virtual);
   // summary
-  const present=new Set(items.map(x=>x.surah).filter(Boolean));
+  const present=new Set((allItems||items).map(x=>x.surah).filter(Boolean));
   const missing=SURAHS.map((_,i)=>i+1).filter(n=>!present.has(n));
   const bad=rows.filter(r=>r.blocking).length;
   const warn=rows.filter(r=>!r.blocking&&r.st.some(x=>x[0]==="t-warn")).length;
-  let sm=`<span class="tag t-mut">عدد الملفات: ${items.length}</span>`;
+  let sm=allItems?`<span class="tag t-warn">المعروض ${items.length} من ${allItems.length} (أُزيل ${allItems.length-items.length} من القائمة)</span>`:`<span class="tag t-mut">عدد الملفات: ${items.length}</span>`;
   if(!virtual){
     sm+=bad?`<span class="tag t-err">تحتاج تصحيحًا: ${bad}</span>`:"";
     sm+=warn?`<span class="tag t-warn">تنبيهات: ${warn}</span>`:"";
@@ -999,6 +1020,39 @@ function render(){
   $("doRename").title=!dirHandle?"متاح فقط عند اختيار مجلد":"";
   $("dlBat").disabled=virtual||!!errs.length;
 }
+function listToolsUI(virtual){
+  if(virtual===undefined) virtual=items.length&&items[0].virtual;
+  const show=items.length&&!virtual;
+  $("listTools").classList.toggle("hidden",!show);
+  const n=items.filter(x=>x.sel).length;
+  $("rmSel").disabled=!n; $("keepSel").disabled=!n;
+  $("rmSel").textContent=n?`إزالة المحدَّد من القائمة (${n})`:"إزالة المحدَّد من القائمة";
+  $("selAll").checked=!!show&&n===items.length; $("selAll").indeterminate=n>0&&n<items.length; $("selAll").disabled=!show;
+  $("restoreList").classList.toggle("hidden",!allItems);
+  if(allItems) $("restoreList").textContent=`إرجاع القائمة كاملة (${allItems.length})`;
+  $("keepMissing").classList.toggle("hidden",!(show&&mode==="wav"&&dirHandle));
+  if(mode==="wav") $("keepMissing").textContent=`إبقاء ما ليس له ناتج في ${convFolder()}`;
+}
+function setList(next,msg){
+  if(!allItems) allItems=items.slice();
+  items.forEach(x=>x.sel=false);
+  items=next;
+  if(items.length===allItems.length) allItems=null;
+  render(); showMsg("runMsg",msg?"ok":"",msg||"");
+}
+$("selAll").onchange=()=>{ const v=$("selAll").checked; items.forEach(x=>x.sel=v); render() };
+$("rmSel").onclick=()=>{ const n=items.filter(x=>x.sel).length; setList(items.filter(x=>!x.sel),`أُزيل ${n} من القائمة، وبقي ${items.length-n}. الملفات نفسها لم تُمسّ.`) };
+$("keepSel").onclick=()=>{ const k=items.filter(x=>x.sel); setList(k,`بقي في القائمة ${k.length} فقط. الملفات الأخرى لم تُمسّ.`) };
+$("restoreList").onclick=()=>{ const all=allItems; allItems=null; items.forEach(x=>x.sel=false); items=all; render(); showMsg("runMsg","","") };
+$("keepMissing").onclick=async()=>{
+  const folder=convFolder(); let sub;
+  try{ sub=await dirHandle.getDirectoryHandle(folder) }catch(e){ showMsg("runMsg","warn",`لا يوجد بعد مجلد ${folder} داخل مجلد المصحف، فكل الملفات تحتاج تحويلًا.`); return }
+  const have=new Set(); for await (const [n] of sub.entries()) have.add(n);
+  const sBr={...settings(),bitrate:"BR"+$("convBr").value}, ext=convFmt()==="m4a"?".m4a":".mp3";
+  const keep=items.filter(it=>!it.surah||!have.has(buildName(sBr,it.surah,ext)));
+  if(keep.length===items.length){ showMsg("runMsg","warn",`لم يُعثر في ${folder} على ناتج لأي ملف من القائمة (تأكد أن بيانات المصحف والجودة هي نفسها التي حُوِّل بها).`); return }
+  setList(keep,keep.length?`بقي ${keep.length} لم يُحوَّل بعد؛ وأُزيل من القائمة ${items.length-keep.length} له ناتج في ${folder}.`:`كل الملفات لها ناتج في ${folder}، فلا شيء يحتاج تحويلًا.`);
+};
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
 
 /* ===================== ACTIONS ===================== */

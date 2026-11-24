@@ -19,7 +19,7 @@
 #endif
 
 #define RAQIM_PORT 47115
-#define VERSION "1.0.2"
+#define VERSION "1.0.3"
 
 static const unsigned char HTML[] = {
 #embed "raqim.html"

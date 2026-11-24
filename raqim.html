@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="raqim-version" content="1.0.3">
+<meta name="raqim-version" content="1.0.4">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>رقيم — تجهيز المصاحف الصوتية وفق معيار مرقوم</title>
 <style>
@@ -46,6 +46,7 @@
   td.mono{font-family:var(--mono);direction:ltr;text-align:left;word-break:break-all}
   td select{padding:3px 6px;font-size:13px}
   tr.selrow td{background:#eef5f1}
+  .t-info{background:#e7f0fb;color:#1f4f86}
   .tag{display:inline-block;padding:1px 8px;border-radius:20px;font-size:12px;white-space:nowrap}
   .t-ok{background:var(--ok-bg);color:var(--ok)} .t-warn{background:var(--warn-bg);color:var(--warn)} .t-err{background:var(--err-bg);color:var(--err)} .t-mut{background:#eee;color:#555}
   .tablewrap{max-height:560px;overflow:auto;border:1px solid var(--line);border-radius:8px;margin-top:12px}
@@ -192,7 +193,7 @@
             <option value="BR256">BR256</option>
             <option value="BR320">BR320</option>
           </select>
-          <small>تكتشف الأداة جودة كل ملف MP3 وتنبّه عند اختلافها</small>
+          <small>تكتشف الأداة جودة كل ملف MP3؛ وعند إعادة تسمية مصحف موجود يُسمّى كل ملف بجودته الحقيقية إن خالفت هذا الاختيار</small>
         </label>
         <label class="f">المؤثرات
           <div class="checks"><label><input type="checkbox" id="fx"> بالمؤثرات (FX)</label></div>
@@ -969,11 +970,13 @@ function computeRows(){
   const counts={};
   items.forEach(it=>{if(it.surah)counts[it.surah]=(counts[it.surah]||0)+1});
   return items.map(it=>{
-    const nn=it.surah?buildName(s,it.surah,mode==="wav"?".mp3":it.ext):"";
+    // an existing MP3 is named after its real (detected) constant bitrate, not the one chosen in the form
+    const real=mode!=="wav" && it.br && !it.br.vbr && it.br.kbps!==wantKbps;
+    const nn=it.surah?buildName(real?{...s,bitrate:"BR"+it.br.kbps}:s,it.surah,mode==="wav"?".mp3":it.ext):"";
     let st=[];
     if(!it.surah) st.push(["t-err","لم تُحدَّد السورة"]);
     else if(counts[it.surah]>1) st.push(["t-err","سورة مكررة"]);
-    if(mode!=="wav" && it.br && !it.br.vbr && it.br.kbps!==wantKbps) st.push(["t-warn",`الجودة ${it.br.kbps} لا BR${wantKbps}`]);
+    if(real) st.push(["t-info",`سُمّي بجودته الحقيقية BR${it.br.kbps} (لا BR${wantKbps})`]);
     if(mode!=="wav" && it.br && it.br.vbr) st.push(["t-warn","متغيّر الجودة VBR"]);
     if(it.how==="رقم (تخمين)") st.push(["t-warn","تحقّق من السورة"]);
     if(!it.virtual && nn && nn===it.name) st.push(["t-mut","مطابق مسبقًا"]);
@@ -1009,10 +1012,12 @@ function render(){
   const missing=SURAHS.map((_,i)=>i+1).filter(n=>!present.has(n));
   const bad=rows.filter(r=>r.blocking).length;
   const warn=rows.filter(r=>!r.blocking&&r.st.some(x=>x[0]==="t-warn")).length;
+  const realN=rows.filter(r=>r.st.some(x=>x[0]==="t-info")).length;
   let sm=allItems?`<span class="tag t-warn">المعروض ${items.length} من ${allItems.length} (أُزيل ${allItems.length-items.length} من القائمة)</span>`:`<span class="tag t-mut">عدد الملفات: ${items.length}</span>`;
   if(!virtual){
     sm+=bad?`<span class="tag t-err">تحتاج تصحيحًا: ${bad}</span>`:"";
     sm+=warn?`<span class="tag t-warn">تنبيهات: ${warn}</span>`:"";
+    sm+=realN?`<span class="tag t-info">بالجودة الحقيقية: ${realN}</span>`:"";
     sm+= missing.length && missing.length<114 ? `<span class="tag t-warn" title="${missing.map(pad3).join(", ")}">سور ناقصة: ${missing.length} (${missing.slice(0,12).map(pad3).join("، ")}${missing.length>12?"…":""})</span>` : (missing.length?"":`<span class="tag t-ok">المصحف كامل ١١٤ سورة</span>`);
   }
   $("summary").innerHTML=sm;

@@ -5,10 +5,11 @@
 #
 # Usage (from the repository root):
 #   sh encoders/build.sh            # fetches the pinned LAME and FDK AAC sources into encoders/.build
-#   sh native/build_windows.sh      # -> native/dist/Raqim.exe
+#   sh native/build_windows.sh      # -> native/dist/Raqim-<version>.exe
 # Requirements: python3 and the Zig C compiler (pip install ziglang).
 set -e
 HERE=$(cd "$(dirname "$0")" && pwd)
+VER=$(sed -n 's/^#define VERSION "\(.*\)"/\1/p' "$HERE/src/main.c")
 ROOT=$(cd "$HERE/.." && pwd)
 ENC="$ROOT/encoders"
 LAME=$(cd "${1:-$ENC/.build/lame}" && pwd)
@@ -44,5 +45,5 @@ engine avx2 x86_64_v3
 
 cp "$HTML" "$HERE/src/raqim.html"
 python3 -m ziglang cc -target $T -O2 -std=c2x -municode -Wl,--subsystem,windows -I"$HERE/src" \
-  "$HERE/src/main.c" "$HERE/src/raqim.rc" -lws2_32 -lshell32 -ladvapi32 -luser32 -s -o "$OUT/Raqim.exe"
-ls -la "$OUT/Raqim.exe" "$HERE"/src/raqim_engine_*.dll
+  "$HERE/src/main.c" "$HERE/src/raqim.rc" -lws2_32 -lshell32 -ladvapi32 -luser32 -s -o "$OUT/Raqim-$VER.exe"
+ls -la "$OUT/Raqim-$VER.exe" "$HERE"/src/raqim_engine_*.dll

@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="raqim-version" content="1.0.4">
+<meta name="raqim-version" content="1.0.5">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>رقيم — تجهيز المصاحف الصوتية وفق معيار مرقوم</title>
 <style>
@@ -327,7 +327,7 @@
             <img id="mCoverImg" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:6px;border:1px solid var(--line)" class="hidden">
           </div>
           <small id="mCoverInfo">لم تُختر صورة</small>
-          <input type="file" id="mCoverFile" accept="image/jpeg,image/png" class="hidden">
+          <input type="file" id="mCoverFile" accept="image/jpeg,image/png,image/webp" class="hidden">
         </label>
       </div>
       </div>
@@ -1223,33 +1223,55 @@ $("perf").addEventListener("change",refreshMeta);
 // cover
 $("mCoverBtn").onclick=()=>$("mCoverFile").click();
 $("mCoverClear").onclick=()=>{cover=null;showCover();try{localStorage.removeItem("marqoum-cover")}catch(e){}};
+const COVER_SIZE=800; // album art is always written as an 800×800 JPEG
+// center-crop to a square and resample to 800×800 with high-quality filtering; white behind transparency
+async function normalizeCover(blob){
+  const src=await createImageBitmap(blob);
+  const side=Math.min(src.width,src.height), sx=(src.width-side)>>1, sy=(src.height-side)>>1;
+  const orig={w:src.width,h:src.height}; src.close&&src.close();
+  const bmp=await createImageBitmap(blob,sx,sy,side,side,{resizeWidth:COVER_SIZE,resizeHeight:COVER_SIZE,resizeQuality:"high"});
+  const c=document.createElement("canvas"); c.width=c.height=COVER_SIZE;
+  const g=c.getContext("2d"); g.fillStyle="#fff"; g.fillRect(0,0,COVER_SIZE,COVER_SIZE);
+  g.imageSmoothingEnabled=true; g.imageSmoothingQuality="high"; g.drawImage(bmp,0,0); bmp.close&&bmp.close();
+  const out=await new Promise(res=>c.toBlob(res,"image/jpeg",0.95));
+  return {bytes:new Uint8Array(await out.arrayBuffer()),orig};
+}
 $("mCoverFile").onchange=async e=>{
   const f=e.target.files[0]; e.target.value=""; if(!f) return;
-  const bytes=new Uint8Array(await f.arrayBuffer());
-  await setCover(bytes,f.type==="image/png"?"image/png":"image/jpeg");
-  try{localStorage.setItem("marqoum-cover",JSON.stringify({mime:cover.mime,b64:b64(bytes)}))}catch(e){}
+  try{
+    const n=await normalizeCover(f);
+    await setCover(n.bytes,"image/jpeg",n.orig);
+    try{localStorage.setItem("marqoum-cover",JSON.stringify({mime:"image/jpeg",b64:b64(n.bytes),orig:n.orig}))}catch(e){}
+  }catch(err){ $("mCoverInfo").textContent="تعذّرت قراءة الصورة: "+(err.message||err) }
 };
 function b64(u8){let s="";for(let i=0;i<u8.length;i+=32768)s+=String.fromCharCode(...u8.subarray(i,i+32768));return btoa(s)}
 function unb64(s){const b=atob(s),u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return u}
-async function setCover(bytes,mime){
-  const url=URL.createObjectURL(new Blob([bytes],{type:mime}));
-  const img=new Image(); img.src=url; await img.decode().catch(()=>{});
-  cover={bytes,mime,w:img.naturalWidth,h:img.naturalHeight,url};
+async function setCover(bytes,mime,orig){
+  let url=URL.createObjectURL(new Blob([bytes],{type:mime}));
+  let img=new Image(); img.src=url; await img.decode().catch(()=>{});
+  if(img.naturalWidth!==COVER_SIZE||img.naturalHeight!==COVER_SIZE||mime!=="image/jpeg"){ // a cover saved by an older version
+    const n=await normalizeCover(new Blob([bytes],{type:mime})); orig=orig||n.orig; bytes=n.bytes; mime="image/jpeg";
+    URL.revokeObjectURL(url); url=URL.createObjectURL(new Blob([bytes],{type:mime}));
+    try{localStorage.setItem("marqoum-cover",JSON.stringify({mime,b64:b64(bytes),orig}))}catch(e){}
+  }
+  cover={bytes,mime,w:COVER_SIZE,h:COVER_SIZE,url,orig};
   showCover();
 }
 function showCover(){
   $("mCoverImg").classList.toggle("hidden",!cover); $("mCoverClear").classList.toggle("hidden",!cover);
   if(cover){ $("mCoverImg").src=cover.url;
-    let t=`${cover.w}×${cover.h} — ${Math.round(cover.bytes.length/1024)} KB`;
-    if(cover.w!==cover.h) t+=" — تنبيه: الصورة ليست مربعة";
-    else if(cover.w<500) t+=" — تنبيه: الدقة منخفضة";
+    let t=`تُكتب ${cover.w}×${cover.h} JPEG — ${Math.round(cover.bytes.length/1024)} KB`;
+    const o=cover.orig;
+    if(o){ t+=` (الأصل ${o.w}×${o.h})`;
+      if(o.w!==o.h) t+=" — تنبيه: الأصل ليس مربعًا فقُصّ من وسطه";
+      else if(o.w<COVER_SIZE) t+=" — تنبيه: الأصل أصغر من 800 فكُبّر وقد يبدو أقل حدة"; }
     $("mCoverInfo").textContent=t;
   } else $("mCoverInfo").textContent="لم تُختر صورة";
   refreshMeta();
 }
 async function loadMeta(){
   try{const o=JSON.parse(localStorage.getItem("marqoum-meta")||"null");if(o){META_FIELDS.forEach(f=>{if(o[f]!=null)$(f).value=o[f]});if(o.onConv!=null)$("mOnConvert").checked=o.onConv}}catch(e){}
-  try{const c=JSON.parse(localStorage.getItem("marqoum-cover")||"null");if(c) await setCover(unb64(c.b64),c.mime)}catch(e){}
+  try{const c=JSON.parse(localStorage.getItem("marqoum-cover")||"null");if(c) await setCover(unb64(c.b64),c.mime,c.orig)}catch(e){}
   refreshMeta();
 }
 

@@ -35,6 +35,7 @@
 | `native/` | نسخة سطح المكتب: المحرك الأصلي، والخادم المحلي، وسكربت بناء `Raqim.exe` |
 | `tools/markdown-viewer/` | صفحة لعرض مقالات Markdown منسّقة أو بأكوادها ونسخها |
 | `licenses/` | تراخيص المكتبات المستعملة |
+| `LICENSE` | رخصة كود رقيم نفسه (MIT) |
 | `CHANGELOG.md` | مراحل تطوير الأداة |
 
 ## إعادة بناء المرمِّزين
@@ -56,3 +57,8 @@ sh native/build_windows.sh      # يبني native/dist/Raqim-<الإصدار>.ex
 ## التراخيص
 
 الأداة تضم مكتبات من أطراف أخرى، لكل منها ترخيصها. التفاصيل في [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+
+## الرخصة
+
+كود رقيم نفسه مرخَّص بـ [رخصة MIT](LICENSE): يحق لأي أحد استعماله وتعديله ونشره، بشرط إبقاء إشعار الحقوق والرخصة.
+أما المرمِّزات المدمجة فلها رخصها الخاصة: LAME ‏(LGPL)، وFDK AAC (رخصة Fraunhofer)، وminimp3 ‏(CC0). التفاصيل في [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) ومجلد `licenses/`.
